@@ -1,0 +1,265 @@
+<template>
+  <div class="v-table">
+    <div class="v-table-header">
+      <div class="v-table-header-count">
+        Show
+        <select v-model="dataTable.options.pageCount" @change="onChangePageCount()">
+          <option>5</option>
+          <option>10</option>
+          <option>15</option>
+          <option>20</option>
+        </select>
+        items each page
+      </div>
+
+      <div class="v-table-header-search">
+        Search
+        <input type="text" v-model="searchBy">
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th v-for="column in dataTable.columns" @click="sortBy(column)" :class="{sort: isSortable(column), 
+                         desc: sort.sortBy === column.value && sort.desc,
+                         asc: sort.sortBy === column.value && !sort.desc}">{{column.text}}</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <!-- $options.filters.filterName(this,filteredRows) -->
+        <tr v-for="row in pagination" track-by="$index">
+          <td v-for="(item, key) in row" @click="editField(key, item)">
+            <span v-if="!item.editing">
+              <template v-if="isButton(key)">
+                <template v-for="button in item.value">
+                  <template v-if="button.isModel">
+                      <button type="button"  :class="button.class" data-toggle="modal" :data-target="button.model" @click="button.func($event, key, button,item, row)">{{button.text}}</button>
+                  </template>
+                  <template v-else>
+                      <button type="button" :class="button.class" @click="button.func($event, key, button, row)">{{button.text}}</button>
+                  </template>
+
+                  
+                </template>
+              </template>
+              <template v-else>
+                <template v-if="isHTML(key)">
+                  <span v-html="item.value"></span>
+                </template>
+                <template v-else>{{item.value}}</template>
+              </template>
+            </span>
+            <template v-if="isEditable(key, item)">
+              <input type="text" v-model="item.tmpValue">
+              <button type="button" @click.stop="saveEdit(item)">Save</button>
+              <button type="button" @click.stop="cancelEdit(item)">Cancel</button>
+            </template>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="v-table-footer">
+      <div class="v-table-footer-info">
+        Showing {{firstRow + 1}} to {{lastRow}} of {{filteredRows.length}} items
+      </div>
+
+      <div class="v-table-footer-page" v-if="lastPage !== 1">
+        <a class="v-table-footer-page-btn" href="javascript:;" @click="togglePage('prev')" :class="{disabled: currentPage == 1}">Prev</a>
+        <a class="v-table-footer-page-btn" href="javascript:;" :class="{current: currentPage == 1}" @click="togglePage(1)">1</a>
+        <span v-if="currentPage >= 5 && lastPage > 10">...</span>
+        <a class="v-table-footer-page-btn" href="javascript:;" :class="{current: currentPage == page + 1}" @click="togglePage(page + 1)"
+          v-for="page in centerPartPage">{{page + 1}}</a>
+        <span v-if="lastPage > 10 && lastPage - currentPage > 5">...</span>
+        <a class="v-table-footer-page-btn" href="javascript:;" :class="{current: currentPage == page + 1}" @click="togglePage(page + 1)"
+          v-for="page in lastPartPage">{{page + 1}}</a>
+        <a class="v-table-footer-page-btn" href="javascript:;" @click="togglePage('next')" :class="{disabled: currentPage == lastPage}">Next</a>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script src="./datatable.ts"></script>
+<style scoped>
+  .v-table table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .v-table table thead {
+    border-bottom: 1px solid #111;
+  }
+
+  .v-table table thead th {
+    position: relative;
+    padding: 10px 18px;
+    text-align: left;
+    background-color: #cbcccd;
+    font-weight: bold;
+  }
+
+  .v-table table thead th.sort {
+    cursor: pointer;
+  }
+
+  .v-table table thead th.sort::after {
+    content: "";
+    position: absolute;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 10px solid #fafafa;
+    right: 5px;
+    top: 50%;
+    margin-top: -10px;
+  }
+
+  .v-table table thead th.sort::before {
+    content: "";
+    position: absolute;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 10px solid #fafafa;
+    right: 5px;
+    top: 50%;
+    margin-top: 3px;
+    transform: rotate(180deg);
+  }
+
+  .v-table table thead th.sort.desc::after {
+    display: none;
+  }
+
+  .v-table table thead th.sort.desc::before {
+    content: "";
+    position: absolute;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 10px solid #333;
+    right: 5px;
+    top: 50%;
+    margin-top: -5px;
+  }
+
+  .v-table table thead th.sort.asc::before {
+    display: none;
+  }
+
+  .v-table table thead th.sort.asc::after {
+    content: "";
+    position: absolute;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 10px solid #333;
+    right: 5px;
+    top: 50%;
+    margin-top: -5px;
+  }
+
+  .v-table table tbody {
+    border-bottom: 1px solid #111;
+  }
+
+  .v-table table tbody tr {
+    background-color: #fff;
+  }
+
+  .v-table table tbody tr td {
+    text-align: left;
+    padding: 10px 8px;
+  }
+
+  .v-table table tbody tr:nth-child(odd) {
+    background-color: #f9f9f9;
+  }
+
+  .v-table table tbody tr:nth-child(odd) td:nth-child(1) {
+    background-color: #f1f1f2;
+  }
+
+  .v-table table tbody tr:nth-child(even) td:nth-child(1) {
+    background-color: #fafafa;
+  }
+
+  .v-table .v-table-header,
+  .v-table .v-table-footer {
+    display: table;
+    height: 40px;
+    width: 100%;
+    line-height: 40px;
+  }
+
+  .v-table .v-table-header::after,
+  .v-table .v-table-footer::after {
+    content: '';
+    clear: both;
+  }
+
+  .v-table .v-table-header-count {
+    float: left;
+  }
+
+  .v-table .v-table-header-search {
+    float: right;
+  }
+
+  .v-table .v-table-footer {
+    margin-top: 10px;
+  }
+
+  .v-table .v-table-footer-info {
+    float: left;
+  }
+
+  .v-table .v-table-footer-page {
+    font-size: 0;
+    float: right;
+  }
+
+  .v-table .v-table-footer-page span {
+    display: inline-block;
+    font-size: 1rem;
+    padding: 10px 15px;
+  }
+
+  .v-table .v-table-footer-page-btn {
+    display: inline-block;
+    height: 40px;
+    box-sizing: border-box;
+    padding: 0px 15px;
+    line-height: 40px;
+    text-decoration: none;
+    color: #000;
+    border-radius: 2px;
+    font-size: 1rem;
+  }
+
+  .v-table .v-table-footer-page-btn:hover {
+    color: #fff;
+    border-top: 1px solid #333;
+    border-bottom: 1px solid #333;
+    background-color: #333;
+  }
+
+  .v-table .v-table-footer-page-btn:nth-last-child(1) {
+    margin-right: 0;
+  }
+
+  .v-table .v-table-footer-page-btn.disabled {
+    cursor: default;
+    color: #666;
+  }
+
+  .v-table .v-table-footer-page-btn.disabled:hover {
+    color: #666;
+    background-color: transparent;
+    border: none;
+  }
+
+  .v-table .v-table-footer-page-btn.current {
+    color: #000;
+    border: 1px solid #979797;
+    background-color: #fff;
+    background: linear-gradient(to bottom, #fff 0%, #dcdcdc 100%);
+  }
+</style>
