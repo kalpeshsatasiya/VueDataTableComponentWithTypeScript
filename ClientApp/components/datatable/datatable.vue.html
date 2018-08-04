@@ -34,7 +34,7 @@
               <template v-if="isButton(key)">
                 <template v-for="button in item.value">
                   <template v-if="button.isModel">
-                      <button type="button"  :class="button.class" data-toggle="modal" :data-target="button.model" @click="button.func($event, key, button,item, row)">{{button.text}}</button>
+                      <button type="button"  :class="button.class" data-toggle="modal" :data-target="button.model" @click="button.func($event, key, button, row)">{{button.text}}</button>
                   </template>
                   <template v-else>
                       <button type="button" :class="button.class" @click="button.func($event, key, button, row)">{{button.text}}</button>
